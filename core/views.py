@@ -1,83 +1,58 @@
-from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib.auth.decorators import login_required, user_passes_test
-from django.db.models import Q
-from django.core.paginator import Paginator
+from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib import messages
-from .models import PrestacionMedica, EspecialidadMedica
-from .forms import PrestacionMedicaForm
+from .models import PrestacionMedica
 
-# R (Read - Catálogo Público)
-def catalogo_prestaciones(request):
-    query = request.GET.get('q', '')
-    especialidad_id = request.GET.get('especialidad', '')
+def agregar_a_canasta(request, pk):
+    prestacion = get_object_or_404(PrestacionMedica, pk=pk)
+    canasta = request.session.get('canasta', {})
+
+    pk_str = str(pk)
+    if pk_str in canasta:
+        canasta[pk_str]['cantidad'] += 1
+    else:
+        canasta[pk_str] = {
+            'titulo': prestacion.titulo,
+            'codigo': prestacion.codigo,
+            'arancel': float(prestacion.arancel_base),
+            'cantidad': 1
+        }
     
-    prestaciones = PrestacionMedica.objects.filter(vigente=True).select_related('especialidad')
+    request.session['canasta'] = canasta
+    messages.success(request, f"'{prestacion.titulo}' añadida al pre-agendamiento.")
+    return redirect('catalogo')
 
-    if query:
-        prestaciones = prestaciones.filter(
-            Q(titulo__icontains=query) | 
-            Q(codigo__icontains=query) | 
-            Q(descripcion__icontains=query)
-        )
+def ver_canasta(request):
+    canasta = request.session.get('canasta', {})
+    subtotal = sum(item['arancel'] * item['cantidad'] for item in canasta.values())
     
-    if especialidad_id:
-        prestaciones = prestaciones.filter(especialidad_id=especialidad_id)
+    # Simulación de descuento por previsión de salud (ej: 20%)
+    descuento = subtotal * 0.20
+    total_final = subtotal - descuento
 
-    paginator = Paginator(prestaciones, 4) # 4 por página para probar paginación
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
-    especialidades = EspecialidadMedica.objects.filter(activa=True)
-
-    return render(request, 'core/catalogo.html', {
-        'page_obj': page_obj,
-        'especialidades': especialidades,
-        'query': query,
-        'especialidad_id': especialidad_id
+    return render(request, 'core/canasta.html', {
+        'canasta': canasta,
+        'subtotal': subtotal,
+        'descuento': descuento,
+        'total_final': total_final
     })
 
-def detalle_prestacion(request, pk):
-    prestacion = get_object_or_404(PrestacionMedica, pk=pk)
-    return render(request, 'core/detalle.html', {'prestacion': prestacion})
+def eliminar_item_canasta(request, pk):
+    canasta = request.session.get('canasta', {})
+    pk_str = str(pk)
+    if pk_str in canasta:
+        del canasta[pk_str]
+        request.session['canasta'] = canasta
+        messages.info(request, "Elemento retirado de la canasta.")
+    return redirect('ver_canasta')
 
-# C (Create - Protegido por Staff)
-@login_required
-@user_passes_test(lambda u: u.is_staff)
-def crear_prestacion(request):
-    if request.method == 'POST':
-        form = PrestacionMedicaForm(request.POST, request.FILES)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Prestación médica creada exitosamente.")
-            return redirect('catalogo')
-    else:
-        form = PrestacionMedicaForm()
-    return render(request, 'core/form_prestacion.html', {'form': form, 'accion': 'Crear'})
+def vaciar_canasta(request):
+    if 'canasta' in request.session:
+        del request.session['canasta']
+        messages.info(request, "Canasta de pre-agendamiento vaciada.")
+    return redirect('catalogo')
 
-# U (Update - Protegido por Staff)
-@login_required
-@user_passes_test(lambda u: u.is_staff)
-def editar_prestacion(request, pk):
-    prestacion = get_object_or_404(PrestacionMedica, pk=pk)
-    if request.method == 'POST':
-        form = PrestacionMedicaForm(request.POST, request.FILES, instance=prestacion)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Prestación actualizada correctamente.")
-            return redirect('catalogo')
-    else:
-        form = PrestacionMedicaForm(instance=prestacion)
-    return render(request, 'core/form_prestacion.html', {'form': form, 'accion': 'Editar'})
-
-# D (Delete / Baja Lógica - Protegido por Staff)
-@login_required
-@user_passes_test(lambda u: u.is_staff)
-def eliminar_prestacion(request, pk):
-    prestacion = get_object_or_404(PrestacionMedica, pk=pk)
-    if request.method == 'POST':
-        # Baja lógica recomendada
-        prestacion.vigente = False
-        prestacion.save()
-        messages.warning(request, f"La prestación '{prestacion.titulo}' fue dada de baja lógicamente.")
-        return redirect('catalogo')
-    return render(request, 'core/eliminar_confirmar.html', {'prestacion': prestacion})
+def simular_pago(request):
+    if 'canasta' in request.session:
+        del request.session['canasta']
+    messages.success(request, "¡Pre-agendamiento generado con éxito! Se ha enviado el comprobante a su correo.")
+    return redirect('catalogo')
