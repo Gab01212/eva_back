@@ -1,58 +1,38 @@
-from django.shortcuts import get_object_or_404, redirect, render
-from django.contrib import messages
-from .models import PrestacionMedica
+from django.shortcuts import render
+from .models import PrestacionMedica, EspecialidadMedica
+
+def catalogo_prestaciones(request):
+    prestaciones = PrestacionMedica.objects.filter(vigente=True).select_related('especialidad')
+    especialidades = EspecialidadMedica.objects.filter(activa=True)
+    return render(request, 'core/catalogo.html', {
+        'prestaciones': prestaciones,
+        'especialidades': especialidades
+    })
+
+def detalle_prestacion(request, pk):
+    # Definición temporal si aún no la tienes completa
+    return render(request, 'core/detalle.html')
+
+def crear_prestacion(request):
+    return render(request, 'core/form_prestacion.html')
+
+def editar_prestacion(request, pk):
+    return render(request, 'core/form_prestacion.html')
+
+def eliminar_prestacion(request, pk):
+    return render(request, 'core/eliminar_confirmar.html')
 
 def agregar_a_canasta(request, pk):
-    prestacion = get_object_or_404(PrestacionMedica, pk=pk)
-    canasta = request.session.get('canasta', {})
-
-    pk_str = str(pk)
-    if pk_str in canasta:
-        canasta[pk_str]['cantidad'] += 1
-    else:
-        canasta[pk_str] = {
-            'titulo': prestacion.titulo,
-            'codigo': prestacion.codigo,
-            'arancel': float(prestacion.arancel_base),
-            'cantidad': 1
-        }
-    
-    request.session['canasta'] = canasta
-    messages.success(request, f"'{prestacion.titulo}' añadida al pre-agendamiento.")
     return redirect('catalogo')
 
 def ver_canasta(request):
-    canasta = request.session.get('canasta', {})
-    subtotal = sum(item['arancel'] * item['cantidad'] for item in canasta.values())
-    
-    # Simulación de descuento por previsión de salud (ej: 20%)
-    descuento = subtotal * 0.20
-    total_final = subtotal - descuento
-
-    return render(request, 'core/canasta.html', {
-        'canasta': canasta,
-        'subtotal': subtotal,
-        'descuento': descuento,
-        'total_final': total_final
-    })
+    return render(request, 'core/canasta.html')
 
 def eliminar_item_canasta(request, pk):
-    canasta = request.session.get('canasta', {})
-    pk_str = str(pk)
-    if pk_str in canasta:
-        del canasta[pk_str]
-        request.session['canasta'] = canasta
-        messages.info(request, "Elemento retirado de la canasta.")
     return redirect('ver_canasta')
 
 def vaciar_canasta(request):
-    if 'canasta' in request.session:
-        del request.session['canasta']
-        messages.info(request, "Canasta de pre-agendamiento vaciada.")
     return redirect('catalogo')
 
 def simular_pago(request):
-    if 'canasta' in request.session:
-        del request.session['canasta']
-    messages.success(request, "¡Pre-agendamiento generado con éxito! Se ha enviado el comprobante a su correo.")
     return redirect('catalogo')

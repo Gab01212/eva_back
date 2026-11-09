@@ -1,0 +1,40 @@
+{% extends 'core/base.html' %}
+{% block content %}
+<div class="row">
+    <div class="col-12 text-center mb-4">
+        <h1 class="fw-bold text-primary">Catálogo de Prestaciones Médicas</h1>
+        <p class="text-muted">Seleccione los exámenes y procedimientos para su pre-agendamiento</p>
+    </div>
+
+    <!-- Listado de Prestaciones -->
+    <div class="col-12">
+        <div class="row">
+            {% if prestaciones %}
+                {% for p in prestaciones %}
+                <div class="col-md-4 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body">
+                            <span class="badge bg-info text-dark mb-2">{{ p.especialidad.nombre }}</span>
+                            <h5 class="card-title fw-bold">{{ p.titulo }}</h5>
+                            <p class="text-muted small">Código: {{ p.codigo }}</p>
+                            <p class="card-text">{{ p.descripcion|truncatechars:80 }}</p>
+                            <h5 class="text-success fw-bold">${{ p.arancel_base|floatformat:0 }}</h5>
+                        </div>
+                        <div class="card-footer bg-white border-top-0 d-flex justify-content-between align-items-center pb-3">
+                            <span class="text-muted small">⏱️ {{ p.duracion_minutos }} mins</span>
+                            <a href="{% url 'agregar_a_canasta' p.id %}" class="btn btn-primary btn-sm">Agregar a Canasta</a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="col-12 text-center py-5">
+                    <div class="alert alert-warning">
+                        No hay prestaciones médicas registradas o vigentes todavía. Ejecuta el comando <code>python manage.py poblar_datos</code> en tu terminal.
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
